@@ -1,7 +1,8 @@
 from os import system, listdir, path 
+from datetime import datetime as dt
 
 
-def quit(c, forced):
+def quit(c=0, forced=False):
     '''
     this function exits the program but before quitting 
     it perform the checks on the files whether they are
@@ -9,6 +10,9 @@ def quit(c, forced):
     then the program quits without performing the checks
     '''
     if forced:
+        for file in fileBuffers:
+            if file.closed is False:
+                file.close()
         exit(c)
 
     for file in fileBuffers:
@@ -26,7 +30,7 @@ if path.isdir(programDir) is False:
     quit(0, fileBuffers)
 
 
-fileBuffers = [] # whenever a new file is opened
+fileBuffers = [] # whenever a new file is opened, it's to be put in this list
 
 # the settings will contain all the config
 # of how a file is to be altered 
@@ -37,39 +41,87 @@ settings = {
     'neovim dark mode toggle': {
         'description'   :   'changes the colorscheme in config file of nvim',
         'mode'          :   'toggle',
-        'tokens'        :   ( 'kanagawa-dragon', 'kanagawa-lotus' ),
-        'fileID'        :   '0',
+        'tokens'        :   ( ( 'kanagawa-dragon', 'kanagawa-lotus' ), ),
+        'filePath'      :   '/home/lupiv/.config/nvim/lua/lupiv/init.lua',
         'trigger'       :   '19',
-        'enable'        :   false
+        'enable'        :   False
     } ,
 
     'test': {
         'description'   :   'test',
         'mode'          :   'toggle',
-        'tokens'        :   ( 'hello mom', 'hi mom' ),
-        'fileID'        :   '1',
-        'trigger'       :   '6:00:00 > {time} > 19:00:00',
-        'enable'        :   true
+        'tokens'        :   ( ( 'hello', 'hi'), ),
+        'filePath'      :   '/home/lupiv/test.txt',
+        'trigger'       :   '2:00:00 < [time] < 19:00:00',
+        'enable'        :   True
     } 
 }
 
-filesToAlter = [
-    '/home/lupiv/.config/nvim/lua/lupiv/init.lua',
-    '/home/lupiv/test.txt',
-]
 
-def backup(fp, fn):
-    ''' saves the file in the backup folder '''  
+def backup(fc, fn):
+    ''' saves the string passed in the backup folder '''  
 
-    if path.isdir('.file_Alter_Backups') is False:
-        system('mkdir .file_Alter_backups')
+    if path.isdir(backupDir) is False:
+        system(f'mkdir {backupDir}')
 
-    file = open(f'{backupDir}/{fn}', 'w+')
+    if path.isfile(f'{backupDir}/{fn}') is False:
+        file = open(f'{backupDir}/{fn}', 'x')
+
+    file = open(f'{backupDir}/{fn}', 'a')
     fileBuffers.append(file)
-    file.write(fp.read())
+    file.write(fc)
     file.close()
-    fp.close()
     
+
+def checkTrigger(trigger):
+    # time based trigger
+    trigger.strip()
+    invalid = 0
+
+    if '[time]' in trigger:
+        cTime = dt.now()
+
+        if '<' in trigger:
+            timesOfTrigger = trigger.split('<')
+
+            if len(timesOfTrigger) == 3:
+                lTimeStr, rTimeStr = timesOfTrigger[::2]
+                lTimeStr = lTimeStr.lstrip().rstrip().split(':')
+                rTimeStr = rTimeStr.lstrip().rstrip().split(':')
+
+                lTime = cTime.replace(
+                        hour=int(lTimeStr[0]),
+                        minute=int(lTimeStr[1]),
+                        second=int(lTimeStr[2]),
+                    )
+
+
+                rTime = cTime.replace(
+                        hour=int(rTimeStr[0]),
+                        minute=int(rTimeStr[1]),
+                        second=int(rTimeStr[2]),
+                    )
+
+            elif len(timesOfTrigger) == 2:
+                lTime = timesOfTrigger[0] \
+                        if '[time]' == temp[1] \
+                        else cTime.replace( hour=0, minute=0, second=0 )
+
+                rTime = timesOfTrigger[1] \
+                        if '[time]' == temp[0] \
+                        else cTime.replace( hour=0, minute=0, second=0 )
+
+            return lTime < cTime and cTime < rTime
+
+        elif '=' in trigger:
+            time = trigger.split('=')[1]
+            return time == cTime
+
+        else:
+            return -1
+
+    return False
+
 
 def main():
     for key in settings.keys():
@@ -78,25 +130,34 @@ def main():
         if setting['enable'] is False:
             continue
         
-        print(f'setting: {setting}')
+        triggered = checkTrigger(setting['trigger'])
+        
+        if triggered == -1:
+            print(f"ERROR: invalid trigger of {key}")
 
-        if 'toggle' in setting.keys():
-            file = fileBuffers[setting['fileID']]
-            fc = file.read() # file content
+        if triggered is False:
+            continue
+        
+        file = open(setting['filePath'], 'r')
+        fc = file.read() # file content
+        file.close()
+        
+        print(f'setting: {key}')
 
+        if 'toggle' == setting['mode']:
             # backing up the content for future 
-            fileName =  file.name.split['/'][-1] \
+            fileName =  file.name.split('/')[-1] \
                         if '/' in file.name \
-                        else file.name.split['\\'][-1]
-            backup(file, fileName)
+                        else file.name.split('\\')[-1]
+            backup(fc, fileName)
 
             # toggling the tokens
             tts = setting['tokens']
             for tt in tts:
-                fc.replace(tt[0], tt[1])
+                fc = fc.replace(*tt)
 
             # writing back
-            file.seek(0)
+            file = open(setting['filePath'], 'w')
             file.write(fc)
             file.close()
 
@@ -104,4 +165,5 @@ def main():
 if __name__ == '__main__':
     print('File Alter')
     main()
+    quit()
 
