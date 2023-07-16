@@ -26,8 +26,7 @@ programDir = '/usr/share/file-alter'
 backupDir = f'{programDir}/backups'
 
 if path.isdir(programDir) is False:
-    print(f'FATAL: Can\'t find the main program dir {programDir}.')
-    quit(0, fileBuffers)
+    system(f'mkdir {programDir}')
 
 
 fileBuffers = [] # whenever a new file is opened, it's to be put in this list
@@ -43,17 +42,24 @@ settings = {
         'mode'          :   'toggle',
         'tokens'        :   ( ( 'kanagawa-dragon', 'kanagawa-lotus' ), ),
         'filePath'      :   '/home/lupiv/.config/nvim/lua/lupiv/init.lua',
-        'trigger'       :   '19',
+        'trigger'       :   ('7:00:00 < [time] < 19:00:00',),
         'enable'        :   False
     } ,
-
+    'neovim light mode toggle': {
+        'description'   :   'changes the colorscheme in config file of nvim',
+        'mode'          :   'toggle',
+        'tokens'        :   ( ( 'kanagawa-lotus', 'kanagawa-dragon' ), ),
+        'filePath'      :   '/home/lupiv/.config/nvim/lua/lupiv/init.lua',
+        'trigger'       :   ('19:00:00 < [time] < 7:00:00',),
+        'enable'        :   True
+    } ,
     'test': {
         'description'   :   'test',
         'mode'          :   'toggle',
         'tokens'        :   ( ( 'hello', 'hi'), ),
         'filePath'      :   '/home/lupiv/test.txt',
-        'trigger'       :   '2:00:00 < [time] < 19:00:00',
-        'enable'        :   True
+        'trigger'       :   ('2:00:00 < [time] < 19:00:00',),
+        'enable'        :   True 
     } 
 }
 
@@ -76,7 +82,6 @@ def backup(fc, fn):
 def checkTrigger(trigger):
     # time based trigger
     trigger.strip()
-    invalid = 0
 
     if '[time]' in trigger:
         cTime = dt.now()
@@ -88,30 +93,32 @@ def checkTrigger(trigger):
                 lTimeStr, rTimeStr = timesOfTrigger[::2]
                 lTimeStr = lTimeStr.lstrip().rstrip().split(':')
                 rTimeStr = rTimeStr.lstrip().rstrip().split(':')
-
+                
                 lTime = cTime.replace(
                         hour=int(lTimeStr[0]),
                         minute=int(lTimeStr[1]),
                         second=int(lTimeStr[2]),
                     )
-
-
                 rTime = cTime.replace(
                         hour=int(rTimeStr[0]),
                         minute=int(rTimeStr[1]),
                         second=int(rTimeStr[2]),
                     )
 
+                return lTime < cTime and cTime < rTime \
+                        if rTime > lTime else \
+                        lTime < cTime or cTime < rTime
+
             elif len(timesOfTrigger) == 2:
                 lTime = timesOfTrigger[0] \
-                        if '[time]' == temp[1] \
+                        if '[time]' == timesOfTrigger[1] \
                         else cTime.replace( hour=0, minute=0, second=0 )
 
                 rTime = timesOfTrigger[1] \
-                        if '[time]' == temp[0] \
+                        if '[time]' == timesOfTrigger[0] \
                         else cTime.replace( hour=0, minute=0, second=0 )
 
-            return lTime < cTime and cTime < rTime
+                return lTime < cTime and cTime < rTime
 
         elif '=' in trigger:
             time = trigger.split('=')[1]
@@ -130,12 +137,13 @@ def main():
         if setting['enable'] is False:
             continue
         
-        triggered = checkTrigger(setting['trigger'])
+        breakpoint()
+        triggered = list(map(checkTrigger, setting['trigger']))
         
-        if triggered == -1:
+        if -1 in triggered:
             print(f"ERROR: invalid trigger of {key}")
 
-        if triggered is False:
+        if False in triggered:
             continue
         
         file = open(setting['filePath'], 'r')
